@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">遥控器v3.0</string>
+    <string name="ble_not_supported">不支持蓝牙</string>
+    <string name="label_data">数据:</string>
+    <string name="label_device_address">蓝牙地址:</string>
+    <string name="label_state">状态:</string>
+    <string name="no_data">无</string>
+    <string name="connected">已连接</string>
+    <string name="disconnected">已断开连接</string>
+    <string name="title_devices">蕊动力</string>
+    <string name="error_bluetooth_not_supported">不支持蓝牙错误</string>
+
+    <string name="unknown_device">未知装置</string>
+    <string name="unknown_characteristic">未知字符串</string>
+    <string name="unknown_service">未知服务</string>
+
+    <!-- Menu items -->
+    <string name="menu_connect">连接</string>
+    <string name="menu_disconnect">断开连接</string>
+    <string name="menu_scan">搜索</string>
+    <string name="menu_stop">停止搜索</string>
+
+    <string name="operate_add">+</string>
+    <string name="operate_minus">-</string>
+</resources>

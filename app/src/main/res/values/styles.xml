@@ -1,0 +1,41 @@
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <!-- Customize your theme here. -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
+        <item name="colorAccent">@color/colorAccent</item>
+    </style>
+
+    <style name="r1">
+        <item name="android:button">@drawable/r1</item>
+    </style>
+    <style name="r1f">
+        <item name="android:button">@drawable/r1_filled</item>
+    </style>
+    <style name="r2">
+        <item name="android:button">@drawable/r2</item>
+    </style>
+    <style name="r2f">
+        <item name="android:button">@drawable/r2_filled</item>
+    </style>
+    <style name="r3">
+        <item name="android:button">@drawable/r3</item>
+    </style>
+    <style name="r3f">
+        <item name="android:button">@drawable/r3_filled</item>
+    </style>
+    <style name="r4">
+        <item name="android:button">@drawable/r4</item>
+    </style>
+    <style name="r4f">
+        <item name="android:button">@drawable/r4_filled</item>
+    </style>
+    <style name="r5">
+        <item name="android:button">@drawable/r5</item>
+    </style>
+    <style name="r5f">
+        <item name="android:button">@drawable/r5_filled</item>
+    </style>
+</resources>
