@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:id="@+id/g1">
+        <item
+            android:id="@+id/nav_task"
+            android:icon="@drawable/nav_task"
+            android:title="使用记录" />
+    </group>
+    <group android:id="@+id/g2">
+        <item
+            android:id="@+id/nav_mail"
+            android:icon="@drawable/nav_mail"
+            android:title="反馈" />
+    </group>
+    <group android:id="@+id/gEnd">
+        <item
+            android:id="@+id/nav_back"
+            android:icon="@drawable/ic_home"
+            android:title="返回" />
+    </group>
+</menu>

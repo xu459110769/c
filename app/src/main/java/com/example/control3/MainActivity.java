@@ -2,46 +2,75 @@ package com.example.control3;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.support.annotation.NonNull;
+import android.support.design.widget.NavigationView;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v4.widget.SwipeRefreshLayout;
+import android.support.v7.app.ActionBar;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.DefaultItemAnimator;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
+import android.text.InputType;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.control3.R;
-import com.example.control3.bluetooth.BluetoothInformation;
-import com.example.control3.bluetooth.InformationAdapter;
+import com.example.control3.adapter.BluetoothInformation;
+import com.example.control3.adapter.InformationAdapter;
+import com.example.control3.pojo.RecordInformation;
+import com.example.control3.pojo.UserInformation;
+import com.example.control3.retrofit_class.User_Retrofit;
+import com.example.control3.retrofit_interface.Record_Request;
+import com.example.control3.retrofit_interface.User_Request;
+import com.example.control3.service.TimerService;
 
+import org.androidannotations.annotations.AfterViews;
 import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.ViewById;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
 
 @EActivity(R.layout.activity_main)
 public class MainActivity extends AppCompatActivity {
 
     private List<BluetoothInformation> bluetoothInformationList=new ArrayList<>();
-
+    private EditText edit;
     private InformationAdapter adapter;
+    public ProgressDialog progressDialog;
 
     @ViewById(R.id.swipe_refresh)
     SwipeRefreshLayout swipeRefresh;
 
-    private static final String TAG = "MainActivity";
+    @ViewById
+    DrawerLayout drawer_layout;
 
+    private static final String TAG = "MainActivity";
+    private Context mContext=this;
     public static final String BLUETOOTH_ADDRESS="bluetooth_address";
     private static final int REQUEST_ENABLE_BT = 1;
     // Stops scanning after 10 seconds.10秒后停止扫描。
@@ -51,15 +80,108 @@ public class MainActivity extends AppCompatActivity {
     RecyclerView recyclerView;
     @ViewById(R.id.toolbar)
     Toolbar toolbar;
+    @ViewById
+    NavigationView nav_view;
+
+    TextView name_information;
+
+    TextView account_information;
 
     private BluetoothAdapter mBluetoothAdapter;
     private boolean mScanning;
     //private Handler mHandler;
 
-    private void init()//暂时代替onCreate
+    @AfterViews
+    public void init()//暂时代替onCreate
     {
         toolbar.setTitle("");
         setSupportActionBar(toolbar);
+        UserInformation userInformation = (UserInformation) getIntent().getSerializableExtra("userInformation");
+//        Log.e(TAG, "init: "+userInformation.toString() );
+
+        //设置等待框
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setTitle("请稍等");
+        progressDialog.setMessage("Loading...");
+        progressDialog.setCancelable(true);
+
+        //设置用户信息菜单图标
+        ActionBar actionBar=getSupportActionBar();
+        if(actionBar!=null){
+            actionBar.setDisplayHomeAsUpEnabled(true);
+            actionBar.setHomeAsUpIndicator(R.drawable.ic_menu);
+        }
+
+        nav_view.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
+            @Override
+            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+                switch (item.getItemId()){
+                    case R.id.nav_task:
+                        Intent intent=new Intent(mContext,RecordActivity_.class);
+                        mContext.startActivity(intent);
+                        break;
+                    case R.id.nav_back:
+                        AlertDialog.Builder dialog = new AlertDialog.Builder(mContext);
+                        dialog.setTitle("提示");
+                        dialog.setMessage("要注销您的账号并返回吗？");
+                        dialog.setCancelable(true);
+                        dialog.setNegativeButton("否", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                            }
+                        });
+                        dialog.setPositiveButton("是", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialogInterface, int i) {
+                                SharedPreferences.Editor editor=SignInActivity.getSharedPrefs(mContext).edit();//清除token和id
+                                editor.remove("id");
+                                editor.remove("token");
+                                editor.apply();
+                                Intent intent=new Intent(mContext,SignInActivity_.class);
+                                mContext.startActivity(intent);
+                                finish();
+                            }
+                        });
+                        dialog.show();
+                        break;
+                    case R.id.nav_mail:
+                        //设置反馈框
+                        edit = new EditText(mContext);
+                        edit.setInputType(InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE);
+                        edit.setMinLines(5);
+                        final AlertDialog.Builder builder = new AlertDialog.Builder(mContext);
+                        builder.setTitle("请输入您的反馈");    //设置对话框标题
+                        builder.setIcon(android.R.drawable.btn_star);   //设置对话框标题前的图标
+                        builder.setView(edit);
+                        builder.setPositiveButton("提交", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                if(!edit.getText().toString().equals(""))
+                                {
+                                    progressDialog.show();
+                                    userRecord();
+                                }
+                                //提交请求更新
+                            }
+                        });
+                        builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                            }
+                        });
+                        builder.show();
+                        break;
+                        default:break;
+                }
+                return true;
+            }
+        });
+        View headerView = nav_view.getHeaderView(0);
+        name_information = headerView.findViewById(R.id.name_information);
+        account_information= headerView.findViewById(R.id.account_information);//必须从上到下逐级获取
+        name_information.setText(userInformation.getuName());
+        account_information.setText(userInformation.getuAccount());
+//        注释测试
 
         initBluetooth();
         GridLayoutManager layoutManager=new GridLayoutManager(this,1);
@@ -121,6 +243,9 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case R.id.menu_stop:
                 scanLeDevice(false);
+                break;
+            case android.R.id.home:
+                drawer_layout.openDrawer(GravityCompat.START);
                 break;
         }
         return true;
@@ -215,7 +340,7 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onResume() {
-        init();
+//        init();
         super.onResume();
         // Ensures Bluetooth is enabled on the device.  If Bluetooth is not currently enabled,
         // fire an intent to display a dialog asking the user to grant permission to enable it.确保设备上启用了蓝牙。如果当前没有启用蓝牙，则触发一个对话框，显示请求用户授予其启用权限的对话框。
@@ -269,6 +394,64 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
+    }
+
+    //提交反馈
+    public void userRecord(){
+        progressDialog.show();
+        SharedPreferences pref=SignInActivity.getSharedPrefs(this);
+        String id=pref.getString("id",null);
+        String token=pref.getString("token",null);
+        Retrofit retrofit=new User_Retrofit().getRetrofit();
+        User_Request request = retrofit.create(User_Request.class);
+        UserInformation userInformation=new UserInformation();
+        userInformation.setuWords(edit.getText().toString());
+        userInformation.setId(Integer.parseInt(id));
+        userInformation.setToken(token);
+        Call<UserInformation> call = request.userNote(userInformation);
+        call.enqueue(new Callback<UserInformation>() {
+            @Override
+            public void onResponse(Call<UserInformation> call, Response<UserInformation> response) {
+                UserInformation userInformation=response.body();
+                if(progressDialog.isShowing())
+                    progressDialog.dismiss();
+                //Log.e(TAG, "onResponse: " +recordInformation.toString());
+                if(userInformation.getCode()==1)//验证成功
+                {
+                    warn("反馈成功!",1);
+                }else if(userInformation.getCode()==0)//验证失败，回到登录界面
+                {
+                    warn("登录状态过期!请重新登录!",0);
+                }
+            }
+            @Override
+            public void onFailure(Call<UserInformation> call, Throwable throwable) {
+                if(progressDialog.isShowing())
+                    progressDialog.dismiss();
+                Log.e(TAG, "onFailure: 连接失败\n"+throwable.getMessage() );
+                warn("连接失败!",2);
+            }
+        });
+    }
+
+    public void warn(String information, final int isToSignIn) {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(this);
+        if(isToSignIn==1)
+            dialog.setTitle("提示");
+        else dialog.setTitle("警告");
+        dialog.setMessage(information);
+        dialog.setCancelable(false);
+        dialog.setPositiveButton("确定", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialogInterface, int i) {
+                if(isToSignIn==0){
+                    Intent intent=new Intent(mContext,SignInActivity_.class);
+                    mContext.startActivity(intent);
+                    finish();
+                }
+            }
+        });
+        dialog.show();
     }
 }
 

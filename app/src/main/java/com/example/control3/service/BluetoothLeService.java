@@ -54,15 +54,15 @@ public class BluetoothLeService extends Service {
     private static final int STATE_CONNECTED = 2;
 
     public final static String ACTION_GATT_CONNECTED =
-            "com.example.bluetooth.le.ACTION_GATT_CONNECTED";
+            "com.example.adapter.le.ACTION_GATT_CONNECTED";
     public final static String ACTION_GATT_DISCONNECTED =
-            "com.example.bluetooth.le.ACTION_GATT_DISCONNECTED";
+            "com.example.adapter.le.ACTION_GATT_DISCONNECTED";
     public final static String ACTION_GATT_SERVICES_DISCOVERED =
-            "com.example.bluetooth.le.ACTION_GATT_SERVICES_DISCOVERED";
+            "com.example.adapter.le.ACTION_GATT_SERVICES_DISCOVERED";
     public final static String ACTION_DATA_AVAILABLE =
-            "com.example.bluetooth.le.ACTION_DATA_AVAILABLE";
+            "com.example.adapter.le.ACTION_DATA_AVAILABLE";
     public final static String EXTRA_DATA =
-            "com.example.bluetooth.le.EXTRA_DATA";
+            "com.example.adapter.le.EXTRA_DATA";
 
     public final static UUID UUID_HEART_RATE_MEASUREMENT =
             UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
@@ -211,7 +211,7 @@ public class BluetoothLeService extends Service {
      *
      * @return Return true if the connection is initiated successfully. The connection result
      *         is reported asynchronously through the
-     *         {@code BluetoothGattCallback#onConnectionStateChange(android.bluetooth.BluetoothGatt, int, int)}
+     *         {@code BluetoothGattCallback#onConnectionStateChange(android.adapter.BluetoothGatt, int, int)}
      *         callback.
      */
     public boolean connect(final String address) {
@@ -249,7 +249,7 @@ public class BluetoothLeService extends Service {
     /**
      * Disconnects an existing connection or cancel a pending connection. The disconnection result
      * is reported asynchronously through the
-     * {@code BluetoothGattCallback#onConnectionStateChange(android.bluetooth.BluetoothGatt, int, int)}
+     * {@code BluetoothGattCallback#onConnectionStateChange(android.adapter.BluetoothGatt, int, int)}
      * callback.
      */
     public void disconnect() {
@@ -274,7 +274,7 @@ public class BluetoothLeService extends Service {
 
     /**
      * Request a read on a given {@code BluetoothGattCharacteristic}. The read result is reported
-     * asynchronously through the {@code BluetoothGattCallback#onCharacteristicRead(android.bluetooth.BluetoothGatt, android.bluetooth.BluetoothGattCharacteristic, int)}
+     * asynchronously through the {@code BluetoothGattCallback#onCharacteristicRead(android.adapter.BluetoothGatt, android.adapter.BluetoothGattCharacteristic, int)}
      * callback.
      *
      * @param characteristic The characteristic to read from.

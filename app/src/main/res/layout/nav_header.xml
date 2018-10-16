@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="210dp"
+    android:padding="20dp"
+    android:background="?attr/colorPrimary">
+
+    <de.hdodenhof.circleimageview.CircleImageView
+        android:id="@+id/icon_image"
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:src="@drawable/nav_icon"
+        />
+    <TextView
+        android:id="@+id/name_information"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/icon_image"
+        android:layout_marginTop="10dp"
+        android:textColor="#FFF"
+        android:textSize="18sp"/>
+
+    <TextView
+        android:id="@+id/account"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/name_information"
+        android:layout_marginTop="10dp"
+        android:text="账号："
+        android:textColor="#FFF"
+        android:textSize="18sp"/>
+    <TextView
+        android:id="@+id/account_information"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/name_information"
+        android:layout_toRightOf="@id/account"
+        android:layout_marginTop="10dp"
+        android:textColor="#FFF"
+        android:textSize="18sp"/>
+
+
+</RelativeLayout>

@@ -1,6 +1,7 @@
 package com.example.control3;
 
 import android.app.ProgressDialog;
+import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
 import android.content.BroadcastReceiver;
@@ -10,8 +11,12 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.os.CountDownTimer;
 import android.os.IBinder;
+import android.support.design.widget.NavigationView;
+import android.support.v4.widget.DrawerLayout;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -21,12 +26,20 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.bigkoo.pickerview.OptionsPickerView;
+import com.example.control3.pojo.InstrumentInformation;
+import com.example.control3.pojo.Record;
+import com.example.control3.pojo.UserInformation;
+import com.example.control3.retrofit_class.User_Retrofit;
+import com.example.control3.retrofit_interface.Instrument_Request;
+import com.example.control3.retrofit_interface.Record_Request;
 import com.example.control3.service.BluetoothLeService;
 import com.example.control3.service.TimerService;
+import com.example.control3.tools.MD5;
 import com.example.control3.view.CircleRelativeLayout;
 import com.example.control3.view.LEDView;
 import com.example.control3.view.SmoothCheckBox;
@@ -36,16 +49,32 @@ import org.androidannotations.annotations.EActivity;
 import org.androidannotations.annotations.ViewById;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+
 @EActivity(R.layout.activity_operate)
 public class OperateActivity extends AppCompatActivity implements View.OnClickListener {
     private static final String TAG = "MainActivity";
+    private Context mContext;
     private OptionsPickerView pvOptions;
     private ArrayList<String> options1Items = new ArrayList<>();
     private String[] information;
     private boolean pkeIsClick = false;
     private boolean leIsClick = false;
     private boolean heIsClick = false;//按钮状态
+    private boolean firstEnter=true;//第一次进入需要更新次数
+    private boolean checkTimes=false;//是否检查时间
+    private boolean checkInstrument=false;//是否检查机器状态
+    private Integer times;
+    @ViewById
+    DrawerLayout drawer_layout;
+    @ViewById
+    NavigationView nav_view;
     @ViewById(R.id.toolbar2)
     Toolbar toolbar;
     @ViewById
@@ -60,15 +89,15 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
     private int strongNow;
 
     @ViewById(R.id.strong_one)
-    Button strongOne;
+    RadioButton strongOne;
     @ViewById(R.id.strong_two)
-    Button strongTwo;
+    RadioButton strongTwo;
     @ViewById(R.id.strong_three)
-    Button strongThree;
+    RadioButton strongThree;
     @ViewById(R.id.strong_four)
-    Button strongFour;
+    RadioButton strongFour;
     @ViewById(R.id.strong_five)
-    Button strongFive;
+    RadioButton strongFive;
     @ViewById(R.id.lin1)
     LinearLayout linearLayout1;
     @ViewById(R.id.strong_text)
@@ -85,6 +114,19 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
     RelativeLayout bottomRel;
     @ViewById
     CircleRelativeLayout circleR;
+
+    //检测手机是否自己关了蓝牙
+    private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
+        public void onReceive (Context context, Intent intent) {
+            String action = intent.getAction();
+            if (BluetoothAdapter.ACTION_STATE_CHANGED.equals(action)) {
+                if(intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1)
+                        == BluetoothAdapter.STATE_OFF){
+                    finish();
+                }
+            }
+        }
+    };
 
     private ProgressDialog progressDialog;
     private boolean timerWork = false;//判断服务启动状态方便返回
@@ -148,7 +190,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
 
     //时间到了会调用这个方法
     private void resetUI() {
-        enter.setText("确定");
+        enter.setText("开始");
         time.setEnabled(true);
         pke.setEnabled(true);
         le.setEnabled(true);
@@ -168,7 +210,24 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
     public void init()
     {
         toolbar.setTitle("");
+        setSupportActionBar(toolbar);
+        //设置用户信息菜单图标
+        ActionBar actionBar=getSupportActionBar();
+        if(actionBar!=null){
+            actionBar.setDisplayHomeAsUpEnabled(true);
+//            actionBar.setHomeAsUpIndicator(R.drawable.ic_menu);
+        }
+//        nav_view.setCheckedItem(R.id.nav_task);
+//        nav_view.setNavigationItemSelectedListener(new NavigationView.OnNavigationItemSelectedListener() {
+//            @Override
+//            public boolean onNavigationItemSelected(@NonNull MenuItem item) {
+//                //这里写逻辑
+//                drawer_layout.closeDrawers();
+//                return true;
+//            }
+//        });
 
+        firstEnter=true;
         final Intent intent = getIntent();
         mDeviceAddress = intent.getStringExtra(MainActivity.BLUETOOTH_ADDRESS);
         Log.e(TAG, "onCreate: " + mDeviceAddress);
@@ -177,7 +236,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         operateLe = hex2byte("0102030405060708090A".getBytes());//生命活能
         operateHe = hex2byte("0202030405060708090A".getBytes());//健康合能
         operatePke = hex2byte("0302030405060708090A".getBytes());//光子动能
-        operateEnter = hex2byte("0402030405060708090A".getBytes());//确定
+        operateEnter = hex2byte("0402030405060708090A".getBytes());//开始
         operateMinus = hex2byte("0502030405060708090A".getBytes());//减少
         operateAdd = hex2byte("0602030405060708090A".getBytes());//增加
         operateTest = hex2byte("0702030405060708090A".getBytes());//测试
@@ -217,11 +276,12 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         });
         //样板注释处
         progressDialog = new ProgressDialog(OperateActivity.this);
-        progressDialog.setTitle("启动蓝牙服务中");
+        progressDialog.setTitle("启动蓝牙服务并更新机器中，请勿关闭程序导致失败");
         progressDialog.setMessage("Loading...");
         progressDialog.setCancelable(false);
         progressDialog.show();
 
+        mContext=this;
         Intent gattServiceIntent = new Intent(this, BluetoothLeService.class);
         bindService(gattServiceIntent, mServiceConnection, BIND_AUTO_CREATE);
 
@@ -345,31 +405,32 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
                 break;
 
             case R.id.enter:
-                if (enter.getText().toString().equals("确定")) {
+                if (enter.getText().toString().equals("开始")) {
                     if (!(pkeIsClick || leIsClick || heIsClick)) {
                         //一个都没选中，弹出错误
-                        warn("请选择至少一个功能！！");
+                        warn("请选择至少一个功能！！",1);
                     } else {
-                        enter.setText("停止");
-                        time.setEnabled(false);
-                        pke.setEnabled(false);
-                        le.setEnabled(false);
-                        he.setEnabled(false);
-                        if (heIsClick) {
-                            //开启调节强度按钮
-                            linearLayout1.setVisibility(View.VISIBLE);
-                            strongText.setVisibility(View.VISIBLE);
-                        }
-                        //对蓝牙发出批量写请求，这里使用线程试试
-                        progressDialog.show();
-                        new Thread() {
-                            @Override
-                            public void run() {
-                                operateAll();
-                                if (progressDialog.isShowing())
-                                    progressDialog.dismiss();
-                            }
-                        }.start();
+                        userAddRecord();
+//                        enter.setText("停止");
+//                        time.setEnabled(false);
+//                        pke.setEnabled(false);
+//                        le.setEnabled(false);
+//                        he.setEnabled(false);
+//                        if (heIsClick) {
+//                            //开启调节强度按钮
+//                            linearLayout1.setVisibility(View.VISIBLE);
+//                            strongText.setVisibility(View.VISIBLE);
+//                        }
+//                        //对蓝牙发出批量写请求，这里使用线程试试
+//                        progressDialog.show();
+//                        new Thread() {
+//                            @Override
+//                            public void run() {
+//                                operateAll();
+//                                if (progressDialog.isShowing())
+//                                    progressDialog.dismiss();
+//                            }
+//                        }.start();
                     }
                 } else if (enter.getText().toString().equals("停止")) {
                     progressDialog.show();
@@ -430,10 +491,10 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         bindService(timerStart, connection, BIND_AUTO_CREATE);
     }
 
-    private void sleep()//睡眠
+    private void sleep(int millis)//睡眠
     {
         try {
-            Thread.sleep(500);
+            Thread.sleep(millis);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -468,15 +529,25 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         return super.onOptionsItemSelected(item);
     }
 
-    private void warn(String information) {
+    //state 0为退出到登录页面，1为只显示，2为退出到蓝牙扫描界面
+    private void warn(String information,final int state) {
         AlertDialog.Builder dialog = new AlertDialog.Builder(OperateActivity.this);
-        dialog.setTitle("警告");
+        dialog.setTitle("提示");
         dialog.setMessage(information);
         dialog.setCancelable(false);
-        dialog.setPositiveButton("好的，重新选择", new DialogInterface.OnClickListener() {
+        dialog.setPositiveButton("确认", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialogInterface, int i) {
-
+                if(state==0)
+                {
+                    Intent intent=new Intent(mContext,SignInActivity_.class);
+                    mContext.startActivity(intent);
+                    finish();
+                }else if(state==2){
+                    Intent intent=new Intent(mContext,MainActivity_.class);
+                    mContext.startActivity(intent);
+                    finish();
+                }
             }
         });
         dialog.show();
@@ -529,6 +600,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
     byte[] operateAdd = new byte[20];
     byte[] operateTest = new byte[20];
     byte[] operateSet = new byte[20];
+    byte[] operateTimesSet = new byte[20];
 
     public void setOperateSetTimeStrong(int min) {//设置时间，强度
         operateSet = hex2byte(("08" + "0" + min / 10 + "0" + min % 10 + "0" + strongNow + "05060708090A").getBytes());
@@ -538,6 +610,20 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         operateSet = hex2byte(("09020304" + (leIsClick?"01":"00")  + (heIsClick?"01":"00") +  (pkeIsClick?"01":"00") + "08090A").getBytes());
     }
 
+    public byte[] setOperateTimesSet(int times) {//设置次数
+        String setTimes=null;
+        if(times>=1000)
+            setTimes=""+times;
+        else if(times>=100)
+            setTimes="0"+times;
+        else if(times>=10)
+            setTimes="00"+times;
+        else if(times>=0)
+            setTimes="000"+times;
+        if(setTimes!=null)
+            operateTimesSet = hex2byte(("0A0203" + setTimes +  "060708090A").getBytes());
+        return operateTimesSet;
+    }
 
     private final ServiceConnection mServiceConnection = new ServiceConnection() {
 
@@ -610,6 +696,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
                 invalidateOptionsMenu();
                 clearUI();
                 //清空子列表（不需要）和数据
+                finish();
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 // Show all the supported services and characteristics on the user interface.显示用户界面上所有支持的服务和特性。
                 Log.e(TAG, "onReceive: 333");
@@ -655,11 +742,33 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
             dataAnalyze(data);
             //对应处理
             if (information != null&&information[5].equals("000")) {//这里做具体判断是否输出指令
-                dataTimes.setLedView(70, "888", information[1]);
+                dataTimes.setLedView(70, "8888", (1000-Integer.parseInt(information[1]))+"");
                 dataDate.setLedView(40, "88888", information[2] + "/" + information[3]);
                 dataId.setLedView(40, "88888", information[0] + information[4]);
                 dataId.setNumberColor(0xFFFFFFFF);
                 dataDate.setNumberColor(0xFFFFFFFF);
+                if(firstEnter)
+                {
+                    getInstrumentByCode();
+                    firstEnter=false;
+                }
+                if(checkTimes)
+                {
+                    while(Integer.parseInt(information[1])!=times)
+                    {
+                        checkTimes=true;
+                        writeOperate(setOperateTimesSet(times));
+                        writeOperate(operateNull);
+                    }
+                    checkTimes=false;
+                    checkInstrument=true;
+                    //接下来开始检查机器的界面
+                    writeOperate(operateTest);//获得信息
+                }
+            }else if(information != null&&information[5].equals("007")&&checkInstrument)
+            {
+                checkInstrument=false;
+                checkAndSet();
             }
         } else
             clearUI();
@@ -674,8 +783,8 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         information = new String[12];
         information[0] = data.substring(0, 2);
         //re[1] = data.substring(3, 5) + data.substring(6, 8) + data.substring(9, 11) + data.substring(12, 14);
-        information[1] = data.substring(10, 11) + data.substring(12, 14);
-        //先只保留三位看看
+        information[1] = data.substring(9, 11) + data.substring(12, 14);
+        //先只保留四位看看
         information[2] = data.substring(15, 17);
         information[3] = data.substring(18, 20);
         information[4] = data.substring(21, 23) + data.substring(24, 25);
@@ -754,7 +863,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
             mBluetoothLeService.setCharacteristicNotification(
                     bluetoothGattCharacteristic, true);
         }
-        sleep();
+        sleep(500);
         return true;
     }
 
@@ -789,10 +898,184 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
         le.setEnabled(true);
         he.setEnabled(true);
         pke.setEnabled(true);
-        writeOperate(operateNull);
-        if (progressDialog.isShowing()) {
-            progressDialog.dismiss();
+        writeOperate(operateNull);//检测是否加好了数据，并向服务器更新数据
+
+    }
+
+
+    public void getInstrumentByCode()
+    {
+        SharedPreferences pref=SignInActivity.getSharedPrefs(this);
+        String id=pref.getString("id",null);
+        if(id==null)
+        {
+            warn("登录状态过期!请重新登录!",0);
+            return;
+        }else if(information[4]==null||information[4].equals("")||information[1]==null)
+        {
+            warn("获取仪器信息错误!",2);
+            return;
         }
+        Retrofit retrofit=new User_Retrofit().getRetrofit();
+        Instrument_Request request = retrofit.create(Instrument_Request.class);
+        Call<Integer> call = request.updateInstrument(information[4],1000-Integer.parseInt(information[1]));
+        call.enqueue(new Callback<Integer>() {
+            @Override
+            public void onResponse(Call<Integer> call, Response<Integer> response) {
+                if(response.body()==null)//操作失败，回到上一层
+                {
+                    if(progressDialog.isShowing())
+                        progressDialog.dismiss();
+                    warn("仪器不存在或已关闭!",2);
+                }else{//更新成功，向机器写数据
+                    times=1000-response.body();
+                    Log.e(TAG, "onResponse: information[1]="+Integer.parseInt(information[1])+"  times="+times );
+                    checkTimes=true;
+                    writeOperate(operateNull);
+                    writeOperate(setOperateTimesSet(times));
+                }
+            }
+            @Override
+            public void onFailure(Call<Integer> call, Throwable throwable) {
+                if(progressDialog.isShowing())
+                    progressDialog.dismiss();
+                Log.e(TAG, "onFailure: 连接失败\n"+throwable.getMessage() );
+                warn("连接失败!",2);
+            }
+        });
+    }
+
+    public void userAddRecord()
+    {
+        SharedPreferences pref=SignInActivity.getSharedPrefs(this);
+        String id=pref.getString("id",null);
+        String token=pref.getString("token",null);
+        if(id==null)
+        {
+            warn("登录状态过期!请重新登录!",0);
+            return;
+        }else if(information[4]==null||information[4].equals(""))
+        {
+            warn("获取仪器信息错误!",2);
+            return;
+        }
+        progressDialog.show();
+        enter.setText("停止");
+        time.setEnabled(false);
+        pke.setEnabled(false);
+        le.setEnabled(false);
+        he.setEnabled(false);
+        if (heIsClick) {
+            //开启调节强度按钮
+            linearLayout1.setVisibility(View.VISIBLE);
+            strongText.setVisibility(View.VISIBLE);
+        }
+        Retrofit retrofit=new User_Retrofit().getRetrofit();
+        Record_Request request = retrofit.create(Record_Request.class);
+        Record record=new Record();
+        record.setuId(Integer.parseInt(id));
+        record.setToken(token);
+        record.setiId(Integer.parseInt(information[4]));
+        record.setrCode(MD5.md5(id+new Date()));
+        record.setrStartTime(new Date());
+        record.setrLastTime(Integer.parseInt(time.getText().toString().substring(0, 2)));
+        record.setrStrong(strongNow);
+        record.setrMode((leIsClick?"生命活能  ":"")  + (heIsClick?"健康合能  ":"") +  (pkeIsClick?"光子动能  ":""));
+        Call<String> call = request.userAddRecord(record);
+        call.enqueue(new Callback<String>() {
+            @Override
+            public void onResponse(Call<String> call, Response<String> response) {
+                if(response.body()==null)//操作失败，回到上一层
+                {
+                    if(progressDialog.isShowing())
+                        progressDialog.dismiss();
+                    warn("连接不存在!",2);
+                }else if(response.body().equals("success")){//更新成功
+//                    enter.setText("停止");
+//                    time.setEnabled(false);
+//                    pke.setEnabled(false);
+//                    le.setEnabled(false);
+//                    he.setEnabled(false);
+//                    if (heIsClick) {
+//                        //开启调节强度按钮
+//                        linearLayout1.setVisibility(View.VISIBLE);
+//                        strongText.setVisibility(View.VISIBLE);
+//                    }
+                    //对蓝牙发出批量写请求，这里使用线程试试
+                    new Thread() {
+                        @Override
+                        public void run() {
+                            operateAll();
+                            if (progressDialog.isShowing())
+                                progressDialog.dismiss();
+                        }
+                    }.start();
+                }
+            }
+            @Override
+            public void onFailure(Call<String> call, Throwable throwable) {
+                if(progressDialog.isShowing())
+                    progressDialog.dismiss();
+                Log.e(TAG, "onFailure: 连接失败\n"+throwable.getMessage() );
+                warn("连接失败!",2);
+            }
+        });
+    }
+
+    private void checkAndSet()//发送07并检查设置对应的界面信息
+    {
+        Log.e(TAG, "checkAndSet: information[11]="+information[11] );
+        if(information[11].equals("2"))//0,1界面 不动即可
+        {
+            leIsClick=information[8].equals("1");
+            heIsClick=information[9].equals("1");
+            pkeIsClick=information[10].equals("1");
+            strongNow=Integer.parseInt(information[7]);
+
+            //设置界面
+            pke.setChecked(pkeIsClick);
+            he.setChecked(heIsClick);
+            le.setChecked(leIsClick);
+            switch (strongNow){
+                case 1:
+                    strongOne.setChecked(true);
+                    break;
+                case 2:
+                    strongTwo.setChecked(true);
+                    break;
+                case 3:
+                    strongThree.setChecked(true);
+                    break;
+                case 4:
+                    strongFour.setChecked(true);
+                    break;
+                case 5:
+                    strongFive.setChecked(true);
+                    break;
+                    default:break;
+            }
+            enter.setText("停止");
+            time.setEnabled(false);
+            pke.setEnabled(false);
+            le.setEnabled(false);
+            he.setEnabled(false);
+            if (heIsClick) {
+                //开启调节强度按钮
+                linearLayout1.setVisibility(View.VISIBLE);
+                strongText.setVisibility(View.VISIBLE);
+            }
+            time.setText((information[6]+":00"));
+            //开启倒计时
+            minute = Integer.parseInt(time.getText().toString().substring(0, 2));
+            second = 0;
+            Log.e(TAG, "onClick: " + minute + ":" + second);
+            Intent timerStart = new Intent(this, TimerService.class);
+            startService(timerStart);
+            bindService(timerStart, connection, BIND_AUTO_CREATE);
+        }
+        if(progressDialog.isShowing())
+            progressDialog.dismiss();
         progressDialog.setTitle("等待...");
+
     }
 }

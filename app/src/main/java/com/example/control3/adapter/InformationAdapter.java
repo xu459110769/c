@@ -1,4 +1,4 @@
-package com.example.control3.bluetooth;
+package com.example.control3.adapter;
 
 import android.content.Context;
 import android.content.Intent;
