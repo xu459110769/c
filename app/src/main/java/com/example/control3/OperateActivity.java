@@ -68,9 +68,9 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
     private boolean leIsClick = false;
     private boolean heIsClick = false;//按钮状态
     private boolean firstEnter=true;//第一次进入需要更新次数
-    private boolean checkTimes=false;//是否检查时间
     private boolean checkInstrument=false;//是否检查机器状态
-    private Integer times;
+    private Integer times;//机器剩余次数
+    private int netTimes;//后台设置次数
     @ViewById
     DrawerLayout drawer_layout;
     @ViewById
@@ -154,6 +154,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
                 @Override
                 public void onFinish() {
                     timerBinder.EndTimer();
+                    writeOperate(operateNull);
                     resetUI();
                 }
             };
@@ -439,6 +440,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
                         public void run() {
                             writeOperate(operateEnter);
                             backToSelectMode(0);
+                            writeOperate(operateNull);
                             if (progressDialog.isShowing())
                                 progressDialog.dismiss();
                         }
@@ -752,19 +754,7 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
                     getInstrumentByCode();
                     firstEnter=false;
                 }
-                if(checkTimes)
-                {
-                    while(Integer.parseInt(information[1])!=times)
-                    {
-                        checkTimes=true;
-                        writeOperate(setOperateTimesSet(times));
-                        writeOperate(operateNull);
-                    }
-                    checkTimes=false;
-                    checkInstrument=true;
-                    //接下来开始检查机器的界面
-                    writeOperate(operateTest);//获得信息
-                }
+
             }else if(information != null&&information[5].equals("007")&&checkInstrument)
             {
                 checkInstrument=false;
@@ -928,11 +918,11 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
                         progressDialog.dismiss();
                     warn("仪器不存在或已关闭!",2);
                 }else{//更新成功，向机器写数据
-                    times=1000-response.body();
-                    Log.e(TAG, "onResponse: information[1]="+Integer.parseInt(information[1])+"  times="+times );
-                    checkTimes=true;
-                    writeOperate(operateNull);
-                    writeOperate(setOperateTimesSet(times));
+                    netTimes=1000-response.body();
+                    times=Integer.parseInt(information[1]);
+                    Log.e(TAG, "onResponse: netTimes="+netTimes+"  times="+times );
+                    checkInstrument=true;
+                    writeOperate(operateTest);//检查是否已经启动
                 }
             }
             @Override
@@ -1073,9 +1063,19 @@ public class OperateActivity extends AppCompatActivity implements View.OnClickLi
             startService(timerStart);
             bindService(timerStart, connection, BIND_AUTO_CREATE);
         }
+        updateTimes();
         if(progressDialog.isShowing())
             progressDialog.dismiss();
         progressDialog.setTitle("等待...");
 
+    }
+
+    //更新使用次数（访问服务器之后用）必须使用000（null）来确定information[1]
+    public void updateTimes(){
+        while(netTimes!=times){
+            writeOperate(setOperateTimesSet(times));
+            writeOperate(operateNull);
+            netTimes=Integer.parseInt(information[1]);
+        }
     }
 }

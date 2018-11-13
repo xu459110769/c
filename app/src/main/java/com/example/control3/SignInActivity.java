@@ -72,7 +72,7 @@ public class SignInActivity extends AppCompatActivity {
         }
         progressDialog.show();
 
-        userSignIn(login_edit_account.getText().toString(), MD5.md5(login_edit_pwd.getText().toString()));
+        userSignIn(login_edit_account.getText().toString(), login_edit_pwd.getText().toString());
 //        Intent intent=new Intent(this,MainActivity_.class);//测试用
 //        startActivity(intent);
     }
